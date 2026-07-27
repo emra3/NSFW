@@ -10,319 +10,298 @@
 <meta name="apple-mobile-web-app-title" content="Stronzo chi legge">
 <title>Stronzo chi legge, in macchina!</title>
 <link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' fill='%23000'/%3E%3Cg fill='%230a84ff'%3E%3Ccircle cx='60' cy='60' r='9'/%3E%3Ccircle cx='120' cy='60' r='9'/%3E%3Ccircle cx='60' cy='120' r='9'/%3E%3Ccircle cx='120' cy='120' r='9'/%3E%3Ccircle cx='90' cy='90' r='9'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="icon.svg">
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{width:100%;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 
-  #stage{position:fixed;inset:0;background:#000;opacity:0;transition:opacity .7s ease}
-  #stage.live{opacity:1}
-  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
-
-  #glyph{position:absolute;top:50%;left:50%;width:46px;height:46px;
-    transform:translate(-50%,-50%) scale(1);opacity:.22;pointer-events:none;
-    transition:opacity .4s ease}
+  /* ---------- HUD (sempre visibile) ---------- */
+  #hud{position:fixed;top:calc(env(safe-area-inset-top) + 14px);left:16px;right:16px;z-index:30;
+    font-family:ui-monospace,Menlo,monospace;font-size:11px;line-height:1.65;
+    color:#6a7078;font-variant-numeric:tabular-nums;pointer-events:none;
+    opacity:0;transition:opacity .5s ease}
+  #hud.on{opacity:1}
+  #hud .row{display:flex;align-items:center;gap:7px}
+  #led{width:7px;height:7px;border-radius:50%;background:#ff453a;flex:0 0 auto;
+    transition:background .3s}
+  #led.ok{background:#30d158}
+  #hud b{font-weight:600;color:#aeb4bc;letter-spacing:.04em}
+  #vals{white-space:pre;margin-top:5px;color:#585e66}
+  #bars{margin-top:7px;display:flex;flex-direction:column;gap:4px;width:170px}
+  .bar{height:3px;background:#1c1f24;border-radius:2px;position:relative;overflow:hidden}
+  .bar i{position:absolute;top:0;bottom:0;left:50%;width:0;background:#0a84ff;
+    border-radius:2px;transition:none}
+  .lbl{color:#4a4f57;font-size:9.5px;letter-spacing:.08em}
 
   /* ---------- GATE ---------- */
   #gate{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;
-    align-items:center;justify-content:center;gap:26px;padding:34px;text-align:center;z-index:10;
-    transition:opacity .5s ease,transform .5s ease}
-  #gate.out{opacity:0;transform:scale(1.06);pointer-events:none}
-  #gateCanvas{position:absolute;inset:0;z-index:-1;opacity:.55}
-
-  #gate h1{color:#fff;font-size:clamp(26px,7.4vw,34px);font-weight:700;letter-spacing:-.03em;
-    line-height:1.12;opacity:0;animation:rise .9s .15s cubic-bezier(.2,.8,.2,1) forwards}
-  #gate .sub{color:#8f949c;font-size:16px;line-height:1.5;max-width:300px;
-    opacity:0;animation:rise .9s .3s cubic-bezier(.2,.8,.2,1) forwards}
-  #goWrap{opacity:0;animation:rise .9s .45s cubic-bezier(.2,.8,.2,1) forwards;position:relative}
-  .hint{color:#54585f;font-size:13px;line-height:1.55;max-width:310px;
-    opacity:0;animation:rise .9s .6s cubic-bezier(.2,.8,.2,1) forwards}
-  #warn{color:#ff9f0a;font-size:14px;line-height:1.5;max-width:320px;min-height:18px}
-
-  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-
+    align-items:center;justify-content:center;gap:24px;padding:34px;text-align:center;z-index:40;
+    transition:opacity .45s ease,transform .45s ease}
+  #gate.out{opacity:0;transform:scale(1.05);pointer-events:none}
+  #gateCv{position:absolute;inset:0;z-index:-1;opacity:.5}
+  #gate h1{color:#fff;font-size:clamp(25px,7.2vw,33px);font-weight:700;letter-spacing:-.03em;
+    line-height:1.14;opacity:0;animation:rise .8s .1s cubic-bezier(.2,.8,.2,1) forwards}
+  #gate .sub{color:#8f949c;font-size:15.5px;line-height:1.5;max-width:300px;
+    opacity:0;animation:rise .8s .25s cubic-bezier(.2,.8,.2,1) forwards}
+  #goWrap{opacity:0;animation:rise .8s .4s cubic-bezier(.2,.8,.2,1) forwards;position:relative}
   #go{appearance:none;border:none;background:#0a84ff;color:#fff;font-size:18px;font-weight:600;
-    padding:17px 44px;border-radius:18px;cursor:pointer;position:relative;z-index:2;
-    transition:transform .18s cubic-bezier(.2,.8,.2,1),background .2s}
-  #go:active{transform:scale(.95);background:#0060df}
+    padding:17px 46px;border-radius:18px;position:relative;z-index:2;
+    transition:transform .16s cubic-bezier(.2,.8,.2,1),background .2s}
+  #go:active{transform:scale(.94);background:#0060df}
   #pulse{position:absolute;inset:0;border-radius:18px;border:1px solid #0a84ff;
     animation:halo 2.6s ease-out infinite;pointer-events:none}
-  @keyframes halo{0%{transform:scale(1);opacity:.55}70%{transform:scale(1.28);opacity:0}100%{opacity:0}}
+  @keyframes halo{0%{transform:scale(1);opacity:.5}70%{transform:scale(1.26);opacity:0}100%{opacity:0}}
+  @keyframes rise{from{opacity:0;transform:translateY(13px)}to{opacity:1;transform:none}}
+  #warn{color:#ff9f0a;font-size:13.5px;line-height:1.5;max-width:330px;min-height:16px}
+  .hint{color:#4e535a;font-size:12.5px;line-height:1.55;max-width:320px;
+    opacity:0;animation:rise .8s .55s cubic-bezier(.2,.8,.2,1) forwards}
+  #simu{appearance:none;background:none;border:1px solid #2a2e34;color:#5e646c;
+    font-size:12px;padding:9px 18px;border-radius:12px;display:none}
 
-  /* ---------- CHROME ---------- */
-  #diag{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:14px;z-index:20;
-    color:#4a4e56;font-size:11px;font-variant-numeric:tabular-nums;line-height:1.5;
-    font-family:ui-monospace,Menlo,monospace;display:none;pointer-events:none;white-space:pre}
-  #corner{position:fixed;top:0;left:0;width:76px;height:76px;z-index:21}
-  #meter{position:fixed;left:0;bottom:0;height:2px;width:0%;background:#0a84ff;z-index:20;
-    opacity:.5;transition:width .12s linear}
+  /* ---------- footer controls ---------- */
+  #foot{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 14px);left:0;right:0;z-index:30;
+    display:flex;justify-content:center;gap:10px;opacity:0;transition:opacity .5s ease}
+  #foot.on{opacity:1}
+  #foot button{appearance:none;background:rgba(255,255,255,.05);border:none;color:#5e646c;
+    font-size:11px;letter-spacing:.05em;padding:9px 16px;border-radius:11px;
+    font-family:ui-monospace,Menlo,monospace}
+  #foot button:active{background:rgba(255,255,255,.11)}
 </style>
 </head>
 <body>
 
-<div id="stage">
-  <canvas id="c"></canvas>
-  <svg id="glyph" viewBox="0 0 24 24" fill="none" stroke="#6b7178" stroke-width="1.3"
-       stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 6.6C10 5.1 6.6 5.1 4.6 5.7v12c2-.6 5.4-.6 7.4.9"/>
-    <path d="M12 6.6c2-1.5 5.4-1.5 7.4-.9v12c-2-.6-5.4-.6-7.4.9"/>
-    <path d="M12 6.6v12"/>
-  </svg>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="row"><span id="led"></span><b id="state">IN ATTESA</b><span id="hz"></span></div>
+  <div id="vals"></div>
+  <div id="bars">
+    <div><div class="lbl">ACC / FRENO</div><div class="bar"><i id="bLong"></i></div></div>
+    <div><div class="lbl">CURVA</div><div class="bar"><i id="bLat"></i></div></div>
+  </div>
 </div>
 
-<div id="diag"></div>
-<div id="corner"></div>
-<div id="meter"></div>
+<div id="foot">
+  <button id="tHud">HUD</button>
+  <button id="tInv">INVERTI</button>
+  <button id="tGain">FORZA ×1</button>
+</div>
 
 <div id="gate">
-  <canvas id="gateCanvas"></canvas>
+  <canvas id="gateCv"></canvas>
   <h1>Stronzo chi legge,<br>in macchina!</h1>
-  <div class="sub">Punti che compensano il movimento dell'auto per ridurre la nausea in lettura.</div>
+  <div class="sub">Punti sui bordi che seguono il movimento reale dell'auto per ridurre la nausea in lettura.</div>
   <div id="goWrap"><div id="pulse"></div><button id="go">Attiva</button></div>
   <div id="warn"></div>
-  <div class="hint">Tieni il telefono come per leggere. Guarda pure il tuo testo: i punti agiscono sulla visione periferica. Tocca l'angolo in alto a sinistra per i dati sensori.</div>
+  <button id="simu">Prova senza sensori (simulazione)</button>
+  <div class="hint">I valori dei sensori restano visibili in alto: se si muovono, sta leggendo davvero.</div>
 </div>
 
 <script>
 (() => {
 "use strict";
+const $=id=>document.getElementById(id);
+const DPR=Math.min(devicePixelRatio||1,2.5);
 
-const $ = id => document.getElementById(id);
-const stage=$('stage'), gate=$('gate'), goBtn=$('go'), warn=$('warn'),
-      diag=$('diag'), corner=$('corner'), meter=$('meter'), glyph=$('glyph');
-
-const DPR = Math.min(devicePixelRatio||1, 2.5);
-
-/* ============================================================
-   GATE — ambient drifting dot field (idle animation)
-   ============================================================ */
-(function gateAnim(){
-  const cv=$('gateCanvas'), ctx=cv.getContext('2d');
+/* ================= GATE ambient ================= */
+let stopGate;
+(function(){
+  const cv=$('gateCv'), x=cv.getContext('2d');
   let w,h,ps=[],raf,t=0;
   function size(){
-    w=cv.clientWidth; h=cv.clientHeight;
-    cv.width=w*DPR; cv.height=h*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
-    ps=[];
-    const n=Math.round((w*h)/9000);
-    for(let i=0;i<n;i++) ps.push({
-      x:Math.random()*w, y:Math.random()*h,
-      r:0.9+Math.random()*1.9,
-      sp:0.12+Math.random()*0.5,
-      ph:Math.random()*Math.PI*2,
-      am:6+Math.random()*22
-    });
+    w=cv.clientWidth;h=cv.clientHeight;cv.width=w*DPR;cv.height=h*DPR;x.setTransform(DPR,0,0,DPR,0,0);
+    ps=[];const n=Math.round(w*h/9500);
+    for(let i=0;i<n;i++)ps.push({x:Math.random()*w,y:Math.random()*h,r:.9+Math.random()*1.8,
+      sp:.12+Math.random()*.45,ph:Math.random()*6.28});
   }
-  function frame(){
-    t+=0.016;
-    ctx.clearRect(0,0,w,h);
-    for(const p of ps){
-      p.y -= p.sp;
-      if(p.y < -6){ p.y=h+6; p.x=Math.random()*w; }
-      const dx=Math.sin(t*0.55+p.ph)*p.am*0.35;
-      const a=0.16+0.24*(0.5+0.5*Math.sin(t*0.9+p.ph));
-      ctx.beginPath();
-      ctx.arc(p.x+dx, p.y, p.r, 0, 6.2832);
-      ctx.fillStyle='rgba(120,150,190,'+a.toFixed(3)+')';
-      ctx.fill();
-    }
-    raf=requestAnimationFrame(frame);
-  }
-  size(); frame();
-  addEventListener('resize',size);
-  window.__stopGate=()=>cancelAnimationFrame(raf);
+  function f(){t+=.016;x.clearRect(0,0,w,h);
+    for(const p of ps){p.y-=p.sp;if(p.y<-6){p.y=h+6;p.x=Math.random()*w;}
+      const a=.15+.22*(.5+.5*Math.sin(t*.9+p.ph));
+      x.beginPath();x.arc(p.x+Math.sin(t*.55+p.ph)*7,p.y,p.r,0,6.2832);
+      x.fillStyle='rgba(120,150,190,'+a.toFixed(3)+')';x.fill();}
+    raf=requestAnimationFrame(f);}
+  size();f();addEventListener('resize',size);
+  stopGate=()=>cancelAnimationFrame(raf);
 })();
 
-/* ============================================================
-   MAIN FIELD — canvas, multi-depth parallax, reactive dots
-   ============================================================ */
-const cv=$('c'), ctx=cv.getContext('2d');
+/* ================= STATE ================= */
 let W=0,H=0;
-const LAYERS=[
-  {gap:54, r:2.9, depth:1.00, base:0.62},
-  {gap:88, r:2.0, depth:0.62, base:0.34},
-  {gap:140,r:1.5, depth:0.34, base:0.20}
-];
-let grids=[];
+const cv=$('c'), ctx=cv.getContext('2d');
+function size(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);build();}
 
-function buildGrid(){
-  W=cv.clientWidth; H=cv.clientHeight;
-  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
-  grids = LAYERS.map(L=>{
-    const pts=[];
-    const cols=Math.ceil(W/L.gap)+4, rows=Math.ceil(H/L.gap)+4;
-    for(let r=-2;r<rows-2;r++)
-      for(let c=-2;c<cols-2;c++)
-        pts.push({x:c*L.gap+L.gap*0.5, y:r*L.gap+L.gap*0.5, ph:Math.random()*6.28});
-    return {L, pts};
-  });
-}
-buildGrid();
-addEventListener('resize',buildGrid);
-
-/* ---------- sensor state ---------- */
 let grav={x:0,y:0,z:0}, gInit=false;
-let offX=0, offY=0, tOffX=0, tOffY=0;
-let vX=0, vY=0;                 // velocity of the field (for trails/stretch)
-let intensity=0, tIntensity=0;  // 0..1 motion energy
-let lastMotion=0, diagOn=false, running=false, demo=false;
+let offX=0,offY=0,tOffX=0,tOffY=0;
+let intensity=0,tIntensity=0;
+let aLong=0,aLat=0,yaw=0;
+let raw={x:0,y:0,z:0};
+let evCount=0, hz=0, lastHzT=0, lastEvent=0;
+let running=false, sim=false, invert=1, gain=1;
+const GAINS=[1,1.6,2.4];let gi=0;
 
-const K_LONG = 0.13, K_LAT = 0.010, K_LAT_A = 0.09;
-let CLAMP_X=0, CLAMP_Y=0;
-function clamps(){ CLAMP_X=W*0.42; CLAMP_Y=H*0.42; }
-clamps(); addEventListener('resize',clamps);
+/* ================= EDGE DOT TRACKS (Apple-like) ================= */
+let tracks=[];
+function build(){
+  const m=Math.max(14, Math.min(W,H)*0.045);       // margine dal bordo
+  const step=Math.max(30, Math.min(H,W)*0.075);
+  tracks=[];
+  const mkV=(xPos)=>{const a=[];for(let y=-step; y<H+step; y+=step)a.push({x:xPos,y,ph:Math.random()*6.28});
+    return {pts:a,axis:'v',len:H+step*2,step};};
+  const mkH=(yPos)=>{const a=[];for(let x=-step; x<W+step; x+=step)a.push({x,y:yPos,ph:Math.random()*6.28});
+    return {pts:a,axis:'h',len:W+step*2,step};};
+  tracks.push(mkV(m), mkV(W-m), mkV(m*2.6), mkV(W-m*2.6));
+  tracks.push(mkH(m), mkH(H-m));
+}
+addEventListener('resize',size);
 
-const clamp=(v,m)=> v<-m?-m: v>m?m: v;
+/* ================= SENSORS ================= */
+const clamp=(v,m)=>v<-m?-m:v>m?m:v;
 const dot3=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z;
 
 function onMotion(e){
-  lastMotion=performance.now();
   const ag=e.accelerationIncludingGravity;
-  if(!ag||ag.x==null) return;
+  if(!ag||ag.x==null)return;
+  lastEvent=performance.now(); evCount++;
+  raw=ag;
 
-  const gA = gInit?0.92:0;
-  grav.x=gA*grav.x+(1-gA)*ag.x;
-  grav.y=gA*grav.y+(1-gA)*ag.y;
-  grav.z=gA*grav.z+(1-gA)*ag.z;
+  const k=gInit?.92:0;
+  grav.x=k*grav.x+(1-k)*ag.x; grav.y=k*grav.y+(1-k)*ag.y; grav.z=k*grav.z+(1-k)*ag.z;
   gInit=true;
   const gm=Math.hypot(grav.x,grav.y,grav.z)||1;
   const gu={x:grav.x/gm,y:grav.y/gm,z:grav.z/gm};
 
-  const lin = (e.acceleration&&e.acceleration.x!=null)
-    ? e.acceleration
-    : {x:ag.x-grav.x,y:ag.y-grav.y,z:ag.z-grav.z};
+  const lin=(e.acceleration&&e.acceleration.x!=null)?e.acceleration
+    :{x:ag.x-grav.x,y:ag.y-grav.y,z:ag.z-grav.z};
 
-  const vComp=dot3(lin,gu);
-  const aH={x:lin.x-vComp*gu.x, y:lin.y-vComp*gu.y, z:lin.z-vComp*gu.z};
+  const vc=dot3(lin,gu);
+  const aH={x:lin.x-vc*gu.x,y:lin.y-vc*gu.y,z:lin.z-vc*gu.z};
+  let ex={x:1-gu.x*gu.x,y:-gu.x*gu.y,z:-gu.x*gu.z};
+  const em=Math.hypot(ex.x,ex.y,ex.z)||1; ex={x:ex.x/em,y:ex.y/em,z:ex.z/em};
+  const el={x:gu.y*ex.z-gu.z*ex.y,y:gu.z*ex.x-gu.x*ex.z,z:gu.x*ex.y-gu.y*ex.x};
 
-  let ex={x:1-gu.x*gu.x, y:-gu.x*gu.y, z:-gu.x*gu.z};
-  const exm=Math.hypot(ex.x,ex.y,ex.z)||1;
-  ex={x:ex.x/exm,y:ex.y/exm,z:ex.z/exm};
-  const el={x:gu.y*ex.z-gu.z*ex.y, y:gu.z*ex.x-gu.x*ex.z, z:gu.x*ex.y-gu.y*ex.x};
+  aLat=dot3(aH,ex); aLong=dot3(aH,el);
+  const rr=e.rotationRate;
+  yaw=(rr&&rr.alpha!=null)?((rr.beta||0)*gu.x+(rr.gamma||0)*gu.y+(rr.alpha||0)*gu.z):0;
 
-  const aLat=dot3(aH,ex), aLong=dot3(aH,el);
-
-  let yaw=0; const rr=e.rotationRate;
-  if(rr&&rr.alpha!=null)
-    yaw=(rr.beta||0)*gu.x+(rr.gamma||0)*gu.y+(rr.alpha||0)*gu.z;
-
-  const scale=Math.min(H,900);
-  tOffY = clamp(aLong*K_LONG*scale, CLAMP_Y);
-  tOffX = clamp(-(yaw*K_LAT + aLat*K_LAT_A)*Math.min(W,500), CLAMP_X);
-
-  tIntensity = Math.min(1, (Math.abs(aLong)+Math.abs(aLat)+Math.abs(yaw)*0.05)/3.2);
-
-  if(diagOn) diag.textContent =
-    'long '+aLong.toFixed(2)+'   lat '+aLat.toFixed(2)+'\n'+
-    'yaw  '+yaw.toFixed(1)+'   e '+tIntensity.toFixed(2)+'\n'+
-    'dx '+tOffX.toFixed(0)+'  dy '+tOffY.toFixed(0);
+  apply();
 }
 
-/* ---------- render ---------- */
+function apply(){
+  const sc=Math.min(H,900), sw=Math.min(W,500);
+  tOffY=clamp(aLong*0.13*sc*gain*invert, H*0.30);
+  tOffX=clamp(-(yaw*0.010+aLat*0.09)*sw*gain*invert, W*0.30);
+  tIntensity=Math.min(1,(Math.abs(aLong)+Math.abs(aLat)+Math.abs(yaw)*0.05)/3.0);
+}
+
+/* ================= RENDER ================= */
 let t=0;
 function loop(){
-  t+=0.016;
-  if(performance.now()-lastMotion>400 && !demo){ tOffX*=0.9; tOffY*=0.9; tIntensity*=0.92; }
+  t+=.016;
+  const now=performance.now();
+  if(now-lastHzT>500){hz=Math.round(evCount/((now-lastHzT)/1000));evCount=0;lastHzT=now;}
+  const alive = sim || (now-lastEvent<700);
 
-  const pX=offX, pY=offY;
-  offX += (tOffX-offX)*0.12;
-  offY += (tOffY-offY)*0.12;
-  vX = vX*0.7 + (offX-pX)*0.3;
-  vY = vY*0.7 + (offY-pY)*0.3;
-  intensity += (tIntensity-intensity)*0.08;
+  if(!alive && !sim){tOffX*=.9;tOffY*=.9;tIntensity*=.9;}
 
-  const speed=Math.hypot(vX,vY);
-  const stretch=Math.min(2.6, 1+speed*0.30);      // motion-blur-ish elongation
-  const ang=Math.atan2(vY,vX);
+  offX+=(tOffX-offX)*.14;
+  offY+=(tOffY-offY)*.14;
+  intensity+=(tIntensity-intensity)*.10;
 
   ctx.clearRect(0,0,W,H);
+  const R=2.0+intensity*4.2;                       // raggio cresce con l'intensità
+  const alpha=.30+.55*intensity;
+  ctx.fillStyle='rgba(168,180,196,'+alpha.toFixed(3)+')';
 
-  for(const g of grids){
-    const L=g.L;
-    const ox=offX*L.depth, oy=offY*L.depth;
-    const alpha=L.base*(0.55+0.45*intensity);
-    ctx.fillStyle='rgba(150,163,178,'+alpha.toFixed(3)+')';
-    for(const p of g.pts){
-      // gentle idle breathing so it is never fully static
-      const br=1+0.10*Math.sin(t*1.3+p.ph);
-      let x=p.x+ox, y=p.y+oy;
-      // wrap so the field never empties at the edges
-      const gap=L.gap;
-      x=((x+gap*2)%(W+gap*4)+(W+gap*4))%(W+gap*4)-gap*2;
-      y=((y+gap*2)%(H+gap*4)+(H+gap*4))%(H+gap*4)-gap*2;
-      const r=L.r*br*(0.85+0.35*intensity*L.depth);
-      if(stretch>1.06){
-        ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
-        ctx.scale(stretch,1/Math.sqrt(stretch));
-        ctx.beginPath(); ctx.arc(0,0,r,0,6.2832); ctx.fill();
-        ctx.restore();
-      } else {
-        ctx.beginPath(); ctx.arc(x,y,r,0,6.2832); ctx.fill();
+  for(const tr of tracks){
+    for(const p of tr.pts){
+      let x=p.x, y=p.y;
+      if(tr.axis==='v'){
+        y=p.y+offY; x=p.x+offX*0.25;
+        y=((y+tr.step)%tr.len+tr.len)%tr.len-tr.step;
+      }else{
+        x=p.x+offX; y=p.y+offY*0.25;
+        x=((x+tr.step)%tr.len+tr.len)%tr.len-tr.step;
       }
+      const br=1+.09*Math.sin(t*1.4+p.ph);
+      ctx.beginPath();ctx.arc(x,y,R*br,0,6.2832);ctx.fill();
     }
   }
 
-  // glyph reacts: fades out and drifts slightly as motion rises
-  glyph.style.opacity = (0.24*(1-intensity*0.75)).toFixed(3);
-  glyph.style.transform =
-    'translate(-50%,-50%) translate('+(offX*0.06).toFixed(1)+'px,'+(offY*0.06).toFixed(1)+'px) scale('+(1+intensity*0.10).toFixed(3)+')';
-
-  meter.style.width = (intensity*100).toFixed(1)+'%';
+  /* HUD live */
+  const led=$('led'), st=$('state');
+  if(alive){led.classList.add('ok');st.textContent=sim?'SIMULAZIONE':'SENSORI LIVE';}
+  else{led.classList.remove('ok');st.textContent='NESSUN DATO';}
+  $('hz').textContent = alive&&!sim ? hz+' Hz' : '';
+  $('vals').textContent =
+    'raw   x '+f2(raw.x)+'  y '+f2(raw.y)+'  z '+f2(raw.z)+'\n'+
+    'long '+f2(aLong)+'   lat '+f2(aLat)+'   yaw '+f2(yaw)+'\n'+
+    'dx '+offX.toFixed(0).padStart(4)+'    dy '+offY.toFixed(0).padStart(4)+'    E '+intensity.toFixed(2);
+  bar($('bLong'), aLong/4);
+  bar($('bLat'),  (aLat+yaw*0.05)/4);
 
   requestAnimationFrame(loop);
 }
-
-/* ---------- demo fallback ---------- */
-let dT=0;
-function startDemo(){
-  demo=true;
-  (function step(){
-    dT+=0.016;
-    tOffY=Math.sin(dT*1.15)*CLAMP_Y*0.55;
-    tOffX=Math.sin(dT*0.52)*CLAMP_X*0.50;
-    tIntensity=0.35+0.35*Math.abs(Math.sin(dT*1.15));
-    requestAnimationFrame(step);
-  })();
+function f2(v){return (v==null?0:v).toFixed(2).padStart(6)}
+function bar(el,v){
+  v=Math.max(-1,Math.min(1,v||0));
+  const w=Math.abs(v)*50;
+  el.style.width=w+'%';
+  el.style.left = v>=0 ? '50%' : (50-w)+'%';
 }
 
-/* ---------- start ---------- */
-async function start(){
-  running=true;
-  gate.classList.add('out');
-  setTimeout(()=>{ gate.style.display='none'; if(window.__stopGate) window.__stopGate(); },520);
-  requestAnimationFrame(()=>stage.classList.add('live'));
-  loop();
+/* ================= START ================= */
+function reveal(){
+  $('gate').classList.add('out');
+  setTimeout(()=>{$('gate').style.display='none';stopGate&&stopGate();},480);
+  $('hud').classList.add('on'); $('foot').classList.add('on');
+  running=true; lastHzT=performance.now(); loop();
+}
 
-  try{ if('wakeLock' in navigator) await navigator.wakeLock.request('screen'); }catch(_){}
-
+$('go').addEventListener('click', function(){
   const DME=window.DeviceMotionEvent;
+
+  // iOS: requestPermission DEVE partire nel gesto, senza await prima
   if(DME && typeof DME.requestPermission==='function'){
-    try{
-      const res=await DME.requestPermission();
-      if(res!=='granted'){
-        gate.style.display='flex'; gate.classList.remove('out');
-        stage.classList.remove('live');
-        warn.textContent='Permesso movimento negato. Impostazioni → Safari → Avanzate → Accesso a movimento e orientamento → ON, poi ricarica.';
-        running=false; return;
-      }
-    }catch(_){}
+    DME.requestPermission().then(res=>{
+      if(res==='granted'){ addEventListener('devicemotion',onMotion); reveal(); after(); }
+      else fail('Permesso negato. Impostazioni → Safari → Avanzate → "Accesso a movimento e orientamento" → ON, poi ricarica.');
+    }).catch(()=>fail('Richiesta permesso fallita. Serve HTTPS e Safari (non anteprime o iframe).'));
+    return;
   }
-  if(DME) addEventListener('devicemotion',onMotion);
-  setTimeout(()=>{ if(!lastMotion) startDemo(); },1600);
+  if(DME){ addEventListener('devicemotion',onMotion); reveal(); after();
+    setTimeout(()=>{ if(!lastEvent) fail('Nessun evento dai sensori su questo dispositivo.'); },1800);
+    return;
+  }
+  fail('DeviceMotion non supportato da questo browser.');
+});
+
+function after(){
+  // wakelock DOPO il permesso, mai prima
+  try{ if('wakeLock' in navigator) navigator.wakeLock.request('screen').catch(()=>{}); }catch(_){}
+}
+function fail(msg){
+  $('gate').style.display='flex'; $('gate').classList.remove('out');
+  $('warn').textContent=msg; $('simu').style.display='inline-block';
 }
 
-goBtn.addEventListener('click',start);
-corner.addEventListener('click',()=>{ diagOn=!diagOn; diag.style.display=diagOn?'block':'none'; });
-
-let lastTap=0;
-addEventListener('touchend',()=>{
-  const n=Date.now();
-  if(n-lastTap<350 && running){ offX=offY=tOffX=tOffY=0; }
-  lastTap=n;
+$('simu').addEventListener('click',()=>{
+  sim=true; reveal();
+  (function step(){
+    t+=0; const s=performance.now()/1000;
+    aLong=Math.sin(s*1.1)*2.4; aLat=Math.sin(s*.47)*1.6; yaw=Math.sin(s*.6)*22;
+    apply(); requestAnimationFrame(step);
+  })();
 });
+
+/* ================= CONTROLS ================= */
+$('tHud').addEventListener('click',()=>$('hud').classList.toggle('on'));
+$('tInv').addEventListener('click',function(){invert*=-1;this.textContent=invert>0?'INVERTI':'INVERTITO';});
+$('tGain').addEventListener('click',function(){gi=(gi+1)%3;gain=GAINS[gi];this.textContent='FORZA ×'+gain;});
+
 document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 document.addEventListener('gesturestart',e=>e.preventDefault());
+size();
 })();
-</script>
-</body>
-</html>
+</script></body></html>
